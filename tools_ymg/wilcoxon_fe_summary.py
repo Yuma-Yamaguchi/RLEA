@@ -1,4 +1,4 @@
-﻿import argparse
+import argparse
 import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 from scipy.stats import wilcoxon
 from tqdm import tqdm
-
 
 def _nan_best_so_far(values: np.ndarray, direction: str) -> np.ndarray:
     values = np.asarray(values, dtype=float).reshape(-1)
@@ -28,11 +27,6 @@ def _nan_best_so_far(values: np.ndarray, direction: str) -> np.ndarray:
         out[i] = best
     return out
 
-
-# def _safe_load_npz(npz_path: Path) -> Dict[str, np.ndarray]:
-#     with np.load(npz_path, allow_pickle=True) as d:
-#         return {k: d[k] for k in d.files}
-
 def _safe_load_npz(path, keys=None):
     try:
         with np.load(path, allow_pickle=True) as d:
@@ -49,7 +43,6 @@ def _safe_load_npz(path, keys=None):
         print(f"[WARN] Failed to load {path}: {e}")
         return {}
 
-
 def _best_so_far(values: np.ndarray, direction: str) -> np.ndarray:
     values = np.asarray(values, dtype=float).reshape(-1)
     if values.size == 0:
@@ -57,7 +50,6 @@ def _best_so_far(values: np.ndarray, direction: str) -> np.ndarray:
     if direction == "max":
         return np.maximum.accumulate(values)
     return np.minimum.accumulate(values)
-
 
 def _flatten_archive_fx(archive_fx: np.ndarray) -> np.ndarray:
     arr = np.asarray(archive_fx)
@@ -74,7 +66,6 @@ def _flatten_archive_fx(archive_fx: np.ndarray) -> np.ndarray:
         return np.asarray(flat_list, dtype=float)
     return arr.astype(float).reshape(-1)
 
-
 def _infer_direction(method_dir: Path, user_direction: str) -> str:
     if user_direction in ("min", "max"):
         return user_direction
@@ -88,7 +79,6 @@ def _infer_direction(method_dir: Path, user_direction: str) -> str:
     _ = str(meta.get("problem", "")).upper()
     return "min"
 
-
 def _value_at_eval(history: np.ndarray, eval_axis: np.ndarray, eval_point: int, fallback: str) -> float:
     if history.size == 0 or eval_axis.size == 0:
         return np.nan
@@ -98,7 +88,6 @@ def _value_at_eval(history: np.ndarray, eval_axis: np.ndarray, eval_point: int, 
     if idx < history.size:
         return float(history[idx])
     return float(history[-1]) if fallback == "last" else np.nan
-
 
 def _load_histories(method_dir: Path, direction: str) -> Dict[int, Tuple[np.ndarray, np.ndarray]]:
     trial_dirs = sorted([p for p in method_dir.iterdir() if p.is_dir() and p.name.startswith("trial_")])
@@ -129,7 +118,6 @@ def _load_histories(method_dir: Path, direction: str) -> Dict[int, Tuple[np.ndar
             axis = np.arange(1, hist.size + 1, dtype=int)
             out[trial_id] = (axis, hist)
     return out
-
 
 def _load_kendall_histories(method_dir: Path) -> Dict[int, Tuple[np.ndarray, np.ndarray]]:
     trial_dirs = sorted([p for p in method_dir.iterdir() if p.is_dir() and p.name.startswith("trial_")])
@@ -163,7 +151,6 @@ def _load_kendall_histories(method_dir: Path) -> Dict[int, Tuple[np.ndarray, np.
         out[trial_id] = (axis, hist)
     return out
 
-
 def _load_metric_histories(
     method_dir: Path,
     direction: str,
@@ -175,7 +162,6 @@ def _load_metric_histories(
         return _load_kendall_histories(method_dir), "train_size"
     raise ValueError(f"Unsupported target_metric: {target_metric}")
 
-
 def _resolve_method_dir(ins_dir: Path, method_name: str, match_mode: str) -> Optional[Path]:
     cand = [p for p in ins_dir.iterdir() if p.is_dir()]
     if match_mode == "exact":
@@ -186,7 +172,6 @@ def _resolve_method_dir(ins_dir: Path, method_name: str, match_mode: str) -> Opt
     if len(hit) == 1:
         return hit[0]
     return None
-
 
 def _paired_values_at_eval(
     base_hist: Dict[int, Tuple[np.ndarray, np.ndarray]],
@@ -210,15 +195,12 @@ def _paired_values_at_eval(
         tids.append(tid)
     return np.asarray(bvals, dtype=float), np.asarray(cvals, dtype=float), np.asarray(tids, dtype=int)
 
-
 def main() -> None:
     ap = argparse.ArgumentParser(description="Wilcoxon signed-rank test at specific FE across instances")
-    ap.add_argument("--root", default="E:\\2325_yamaguchi\\_results_TEVC_20260709\\", help="result root")
+    ap.add_argument("--root", default="", help="result root")
     ap.add_argument("--instances", nargs="+", default=["burma14","ulysses22","fri26","bayg29","swiss42","att48","berlin52", "br17","ftv33","ftv35","ftv38","p43","ry48p","ft53", "N-pal11","N-pal19","N-pal23","N-pal27","N-econ36","N-p40-01","N-be75np"], help="instance names", choices=["burma14","ulysses22","fri26","bayg29","swiss42","att48","berlin52", "br17","ftv33","ftv35","ftv38","p43","ry48p","ft53", "N-pal11","N-pal19","N-pal23","N-pal27","N-econ36","N-p40-01","N-p44-01","N-be75np"])
-    # ap.add_argument("--methods", nargs="+", default=["fatrls_init100_fixed","gbdtma_sage_mean_fixed_fin","gbdtma_gbdt_mean_fixed_fin","umm_fixed","rflos_fixed","lat2way_oracle_mean_best","lat2way_sage_mean_nn_density_1","lat2way_sage_mean_knn_density_0.2_1_noLoc","lat2way_sage_mean_knn_density_0.2_2","lat2way_sage_mean_knn_density_0.2_3","lat2way_sage_mean_knn_density_0.2_4"], help="algorithm names to compare", choices=["fatrls", "gbdtma_gbdt_lcb_fixed","gbdtma_rf_mean_fixed","gbdtma_sage_mean_fixed_fin","gbdtma_sage_mean_fixed_fin_BB","umm_fixed","rflos","lat2way_sage_mean_nn_density_1","lat2way_sage_mean_knn_density_0.2_1_noLoc","lat2way_sage_mean_knn_density_0.2_2","lat2way_sage_mean_knn_density_0.2_3","lat2way_sage_mean_knn_density_0.2_4"])
-    ap.add_argument("--methods", nargs="+", default=["lat2way_sage_mean_knn_density_1_mu_10_50","lat2way_sage_mean_knn_density_1_20_50","lat2way_sage_mean_knn_density_1_1_50","lat2way_sage_mean_knn_density_1_5_50"], help="algorithm names to compare", choices=["fatrls", "gbdtma_gbdt_lcb_fixed","gbdtma_rf_mean_fixed","gbdtma_sage_mean_fixed_fin","gbdtma_sage_mean_fixed_fin_BB","umm_fixed","rflos","lat2way_sage_mean_nn_density_1","lat2way_sage_mean_knn_density_0.2_1_noLoc","lat2way_sage_mean_knn_density_0.2_2","lat2way_sage_mean_knn_density_0.2_3","lat2way_sage_mean_knn_density_0.2_4"])
-    # ap.add_argument("--methods", nargs="+", default=["lat2way_sage_mean_knn_density_1_mu_10_50","lat2way_sage_mean_knn_density_1_mu_10_50_10evals","lat2way_sage_mean_knn_density_1_mu_10_50_3evals"], help="algorithm names to compare", choices=["fatrls", "gbdtma_gbdt_lcb_fixed","gbdtma_rf_mean_fixed","gbdtma_sage_mean_fixed_fin","gbdtma_sage_mean_fixed_fin_BB","umm_fixed","rflos","lat2way_sage_mean_nn_density_1","lat2way_sage_mean_knn_density_0.2_1_noLoc","lat2way_sage_mean_knn_density_0.2_2","lat2way_sage_mean_knn_density_0.2_3","lat2way_sage_mean_knn_density_0.2_4"])
-    ap.add_argument("--baseline", default="lat2way_sage_mean_knn_density_1_mu_10_50", help="baseline algorithm name")
+    ap.add_argument("--methods", nargs="+", default=["RLEA", "gbdtma", "fatrls", "umm", "rflos"], help="algorithm names to compare")
+    ap.add_argument("--baseline", default="RLEA", help="baseline algorithm name")
     ap.add_argument("--eval-points", nargs="+", type=int, default=[200,300,400,500,600], help="FE points for performance mode or train_sizes for kendall_tau mode", choices=[200,300,400,500,600])
     ap.add_argument("--target-metric", choices=["performance", "kendall_tau"], default="performance",
                     help="compare objective performance at FE or test Kendall's tau at train_size")

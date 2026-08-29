@@ -1,22 +1,3 @@
-﻿#!/usr/bin/env python3
-"""Analyze true-value accuracy of incumbent internal update decisions.
-
-Expected layout:
-
-    ROOT / INSTANCE / ALGORITHM / trial_XX / result.npz
-
-The script reads ``incumbent_internal`` entries written by ``scripts/latent_2way.py``.
-It compares the surrogate's parent-child update decision with the true-value
-comparison logged for analysis only:
-
-    surrogate_update = comparison_child_score < comparison_parent_score
-    true_update      = comparison_child_true  < comparison_parent_true
-
-Outputs:
-    incumbent_update_accuracy_trials.csv
-    incumbent_update_accuracy_summary.csv
-    incumbent_update_accuracy_by_step.csv
-"""
 from __future__ import annotations
 
 import argparse
@@ -33,7 +14,7 @@ import numpy as np
 
 try:
     from tqdm import tqdm
-except Exception:  # pragma: no cover
+except Exception:
     def tqdm(iterable, **kwargs):
         return iterable
 
@@ -90,10 +71,10 @@ def infer_instance_algorithm(path: Path, root: Optional[Path]) -> tuple[str, str
 
 
 def infer_surrogate(algorithm: str) -> str:
-    m = re.search(r"lat2way_([^_]+)_", algorithm)
+    m = re.search(r"RLEA_([^_]+)_", algorithm)
     if m:
         return m.group(1)
-    m = re.search(r"(?:^|_)(rf|gbdt|sage|gnn|level|rank)(?:_|$)", algorithm)
+    m = re.search(r"(?:^|_)(rf|gbdt)(?:_|$)", algorithm)
     return m.group(1) if m else algorithm
 
 
@@ -132,7 +113,7 @@ def discover_result_files(
             if algorithms:
                 algo_dirs: Iterable[Path] = [instance_dir / alg for alg in algorithms]
             else:
-                algo_dirs = [p for p in instance_dir.iterdir() if p.is_dir() and p.name.startswith("lat2way_")]
+                algo_dirs = [p for p in instance_dir.iterdir() if p.is_dir() and p.name.startswith("RLEA_")]
             for algo_dir in algo_dirs:
                 if algo_dir.exists():
                     files.extend(sorted(algo_dir.glob("trial_*/result.npz")))
@@ -183,7 +164,7 @@ def make_metric_row(
 def summarize_one_result(path: Path, root: Optional[Path], include_steps: bool, max_fe: Optional[int]) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
     instance, algorithm, trial = infer_instance_algorithm(path, root)
     meta = load_meta(path.parents[1])
-    surrogate = str(meta.get("latent_2ways_surrogate") or infer_surrogate(algorithm))
+    surrogate = str(meta.get("RLEA_surrogate") or infer_surrogate(algorithm))
 
     z = np.load(path, allow_pickle=True)
     if "incumbent_internal" not in z.files:
@@ -371,8 +352,6 @@ def display_name(row: Mapping[str, Any]) -> str:
         return "RLEA-RF"
     if surrogate == "gbdt":
         return "RLEA-GBDT"
-    if surrogate == "sage":
-        return "RLEA"
     return surrogate or algorithm
 
 
@@ -580,12 +559,12 @@ def make_instance_table(
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Analyze true-value accuracy of incumbent update decisions.")
-    ap.add_argument("--root", default="E:\\2325_yamaguchi\\_results_TEVC_20260709\\")
+    ap.add_argument("--root", default="")
     ap.add_argument("--instance", default=None, help="Single instance name such as att48. If omitted, scan all instances.")
     ap.add_argument("--instances", nargs="+", default=["burma14","ulysses22","fri26","bayg29","swiss42","att48","berlin52", "br17","ftv33","ftv35","ftv38","p43","ry48p","ft53", "N-pal11","N-pal19","N-pal23","N-pal27","N-econ36","N-p40-01","N-p44-01","N-be75np"], help="instance names", choices=["burma14","ulysses22","fri26","bayg29","swiss42","att48","berlin52", "br17","ftv33","ftv35","ftv38","p43","ry48p","ft53", "N-pal11","N-pal19","N-pal23","N-pal27","N-econ36","N-p40-01","N-be75np"])
-    ap.add_argument("--algorithm", nargs="*", default=["lat2way_sage_mean_knn_density_1_mu_10_50_BB","lat2way_sage_mean_knn_density_1_mu_10_50","lat2way_rf_mean_knn_density_1_mu_10_50","lat2way_gbdt_mean_knn_density_1_mu_10_50"], help="Algorithm directory names to include under every selected instance.")
+    ap.add_argument("--algorithm", nargs="*", default=["RLEA"], help="Algorithm directory names to include under every selected instance.")
     ap.add_argument("--input", nargs="*", default=None, help="Explicit result.npz paths or glob patterns.")
-    ap.add_argument("--out-dir", type=Path, default="E:\\2325_yamaguchi\\_results_TEVC_20260709\\_incumbent_update_accuracy", help="Directory to write CSV outputs.")
+    ap.add_argument("--out-dir", type=Path, default="_incumbent_update_accuracy", help="Directory to write CSV outputs.")
     ap.add_argument("--require-truth", action="store_true", help="Skip runs without comparison truth logs.")
     ap.add_argument("--verbose", action="store_true", help="Print each loaded result.npz path.")
     ap.add_argument("--no-progress", action="store_true", help="Disable tqdm progress bars.")
@@ -593,7 +572,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--jobs", type=int, default=1, help="Number of result.npz files to load in parallel.")
     ap.add_argument("--max-fe", type=int, default=300, help="Aggregate only incumbent comparison logs whose corresponding FE is <= this value.")
     ap.add_argument("--table-metric", default="balanced_accuracy_mean", help="Summary metric used in the instance table.")
-    ap.add_argument("--table-baseline-algorithm", default="lat2way_sage_mean_knn_density_1_mu_10_50_BB", help="Algorithm directory name or displayed table column used as the baseline for p<alpha significance marks.")
+    ap.add_argument("--table-baseline-algorithm", default="RLEA", help="Algorithm directory name or displayed table column used as the baseline for p<alpha significance marks.")
     ap.add_argument("--table-alpha", type=float, default=0.05, help="Significance threshold for table marks: +, ~, -.")
     return ap.parse_args()
 

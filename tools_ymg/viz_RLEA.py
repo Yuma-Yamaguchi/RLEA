@@ -1,13 +1,3 @@
-#!/usr/bin/env python3
-"""Visualize and compare permutation search trajectories from result.npz logs.
-
-The expected experiment layout matches scripts/main.py:
-
-    ROOT / INSTANCE / METHOD / trial_XX / result.npz
-
-Each result.npz is expected to contain archive_perm and archive_fx. All selected
-methods/trials are embedded together so every panel shares one coordinate system.
-"""
 from __future__ import annotations
 
 import argparse
@@ -20,7 +10,6 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-
 INSTANCE_CHOICES = [
     "burma14", "ulysses22", "fri26", "bayg29", "swiss42", "att48", "berlin52",
     "br17", "ftv33", "ftv35", "ftv38", "p43", "ry48p", "ft53",
@@ -32,14 +21,8 @@ Perm = Sequence[int]
 DistanceFunc = Callable[[Perm, Perm], float]
 Row = Dict[str, Any]
 
-
-# =============================================================================
-# Permutation distances
-# =============================================================================
-
 def hamming_distance(p1: Perm, p2: Perm) -> float:
     return float(np.sum(np.asarray(p1) != np.asarray(p2)))
-
 
 def undirected_adjacency_distance(p1: Perm, p2: Perm, cyclic: bool = True) -> float:
     def edge_set(p: Perm) -> set[frozenset[int]]:
@@ -50,7 +33,6 @@ def undirected_adjacency_distance(p1: Perm, p2: Perm, cyclic: bool = True) -> fl
 
     return float(len(edge_set(p1).symmetric_difference(edge_set(p2))) / 2.0)
 
-
 def directed_adjacency_distance(p1: Perm, p2: Perm, cyclic: bool = True) -> float:
     def edge_set(p: Perm) -> set[Tuple[int, int]]:
         edges = {(int(p[i]), int(p[i + 1])) for i in range(len(p) - 1)}
@@ -59,7 +41,6 @@ def directed_adjacency_distance(p1: Perm, p2: Perm, cyclic: bool = True) -> floa
         return edges
 
     return float(len(edge_set(p1).symmetric_difference(edge_set(p2))) / 2.0)
-
 
 def kendall_tau_distance(p1: Perm, p2: Perm) -> float:
     pos1 = {int(item): i for i, item in enumerate(p1)}
@@ -73,9 +54,8 @@ def kendall_tau_distance(p1: Perm, p2: Perm) -> float:
                 distance += 1
     return float(distance)
 
-
 def interchange_distance(p1: Perm, p2: Perm) -> float:
-    """Minimum number of arbitrary swaps needed to transform p1 into p2."""
+
     p1 = [int(v) for v in p1]
     p2 = [int(v) for v in p2]
     pos2 = {v: i for i, v in enumerate(p2)}
@@ -116,11 +96,6 @@ def get_distance_func(name: str, problem: str, cyclic: bool) -> Tuple[str, Dista
     if name == "adjacency_directed":
         return name, lambda a, b: directed_adjacency_distance(a, b, cyclic=cyclic)
     raise ValueError(f"Unknown distance: {name}")
-
-
-# =============================================================================
-# Loading result.npz trajectories
-# =============================================================================
 
 def safe_load_npz(npz_path: Path) -> Dict[str, np.ndarray]:
     with np.load(npz_path, allow_pickle=True) as d:
@@ -323,9 +298,9 @@ def load_trajectories(
     return rows
 
 
-# =============================================================================
-# Embedding and plotting
-# =============================================================================
+
+
+
 
 def build_distance_matrix(permutations: Sequence[Perm], distance_func: DistanceFunc) -> np.ndarray:
     n = len(permutations)
@@ -938,7 +913,7 @@ def save_plots(
         cbar = fig.colorbar(colorbar_mappable, ax=axes[:n_methods].tolist(), fraction=0.025, pad=0.05)
         cbar.set_label("Objective value (lower is better)")
 
-    # fig.suptitle(f"{ins_name}: search trajectories by {distance_name} distance{title_suffix}", fontsize=13, y=0.995)
+
     fig.suptitle(f"{ins_name}: search trajectories", fontsize=13, y=0.995)
     fig.subplots_adjust(top=0.88, right=0.87)
     fig_path = out_dir / f"{ins_name}_searchspace_{distance_name}{suffix}.{fmt}"
@@ -1121,16 +1096,13 @@ def save_centroid_flow_plot(
         ["method", "display_method", "trial", "fe_start", "fe_end", "n_points", "centroid_x", "centroid_y", "best_objective_in_bin"],
     )
     return fig_path, csv_path
-# =============================================================================
-# CLI
-# =============================================================================
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Visualize permutation search spaces from result.npz logs")
-    ap.add_argument("--root", default="E:\\2325_yamaguchi\\_results_TEVC_20260709\\", help="Result root folder, same as --save_path in scripts/main.py")
+    ap.add_argument("--root", default="", help="Result root folder, same as --save_path in scripts/main.py")
     ap.add_argument("--ins-name", default="N-p40-01", choices=INSTANCE_CHOICES, help="Instance folder under --root")
-    ap.add_argument("--include", nargs="*", default=["umm_fixed","fatrls_init100_fixed","rflos_fixed","gbdtma_gbdt_mean_fixed_fin","lat2way_sage_mean_knn_density_1_mu_10_50","lat2way_sage_mean_knn_density_1_mu_10_50_BB"], help="Method name substrings to include")
-    # ap.add_argument("--include", nargs="*", default=["umm_fixed","rflos_fixed","gbdtma_gbdt_mean_fixed_fin","fatrls_init100_fixed","lat2way_sage_mean_knn_density_1_mu_10_50_BB","lat2way_sage_mean_knn_density_1_mu_10_50","lat2way_sage_mean_knn_density_1_1_50","lat2way_sage_mean_knn_density_1_5_50","lat2way_sage_mean_knn_density_1_20_50","lat2way_rf_mean_knn_density_1_mu_10_50","lat2way_gbdt_mean_knn_density_1_mu_10_50"], help="Method name substrings to include")
+    ap.add_argument("--include", nargs="*", default=["umm", "fatrls", "rflos", "gbdtma", "RLEA"], help="Method name substrings to include")
+
     ap.add_argument("--exclude", nargs="*", default=["*_whole"], help="Method name substrings to exclude")
     ap.add_argument("--problem", choices=["auto", "TSP", "ATSP", "LOP", "QAP", "PFSP"], default="auto", help="Used by --distance auto")
     ap.add_argument("--distance", choices=["auto", "hamming", "kendall", "interchange", "adjacency_undirected", "adjacency_directed"], default="auto", help="Permutation distance for embedding")
@@ -1176,19 +1148,11 @@ def main() -> None:
         "--legend-map",
         nargs="*",
         default=[
-            "lat2way_sage_mean_knn_density_1_mu_10_50=RLEA",
-            "lat2way_sage_mean_knn_density_1_1_50=RLEA_1",
-            "lat2way_sage_mean_knn_density_1_5_50=RLEA_5",
-            "lat2way_sage_mean_knn_density_1_20_50=RLEA_20",
-            "lat2way_sage_mean_knn_density_1_mu_10_50_BB=RLEA-BB",
-            "lat2way_rf_mean_knn_density_1_mu_10_50=RLEA-RF",
-            "lat2way_gbdt_mean_knn_density_1_mu_10_50=RLEA-GBDT",
-            "gbdtma_gbdt_mean_fixed_fin=GBDTMA",
-            "gbdtma_sage_mean_fixed_fin=RLEA-old",
-            "fatrls_init100_fixed=FAT-RLS",
-            "fatrls_fixed=FAT-RLS",
-            "umm_fixed=UMM",
-            "rflos_fixed=RFLoS",
+            "RLEA=RLEA",
+            "gbdtma=GBDTMA",
+            "fatrls=FAT-RLS",
+            "umm=UMM",
+            "rflos=RFLoS",
         ],
         help="Legend rename rules in key=value form",
     )

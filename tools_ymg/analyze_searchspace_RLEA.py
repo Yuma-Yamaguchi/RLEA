@@ -1,13 +1,3 @@
-﻿#!/usr/bin/env python3
-"""Visualize and compare permutation search trajectories from result.npz logs.
-
-The expected experiment layout matches scripts/main.py:
-
-    ROOT / INSTANCE / METHOD / trial_XX / result.npz
-
-Each result.npz is expected to contain archive_perm and archive_fx. All selected
-methods/trials are embedded together so every panel shares one coordinate system.
-"""
 from __future__ import annotations
 
 import argparse
@@ -33,9 +23,9 @@ DistanceFunc = Callable[[Perm, Perm], float]
 Row = Dict[str, Any]
 
 
-# =============================================================================
-# Permutation distances
-# =============================================================================
+
+
+
 
 def hamming_distance(p1: Perm, p2: Perm) -> float:
     return float(np.sum(np.asarray(p1) != np.asarray(p2)))
@@ -75,7 +65,7 @@ def kendall_tau_distance(p1: Perm, p2: Perm) -> float:
 
 
 def interchange_distance(p1: Perm, p2: Perm) -> float:
-    """Minimum number of arbitrary swaps needed to transform p1 into p2."""
+
     p1 = [int(v) for v in p1]
     p2 = [int(v) for v in p2]
     pos2 = {v: i for i, v in enumerate(p2)}
@@ -118,9 +108,9 @@ def get_distance_func(name: str, problem: str, cyclic: bool) -> Tuple[str, Dista
     raise ValueError(f"Unknown distance: {name}")
 
 
-# =============================================================================
-# Loading result.npz trajectories
-# =============================================================================
+
+
+
 
 def safe_load_npz(npz_path: Path) -> Dict[str, np.ndarray]:
     with np.load(npz_path, allow_pickle=True) as d:
@@ -206,7 +196,6 @@ def collect_method_dirs(root: Path, ins_name: str) -> List[Path]:
         raise FileNotFoundError(f"Instance folder not found: {ins_dir}")
     return [p for p in ins_dir.iterdir() if p.is_dir() and not p.name.startswith("_")]
 
-
 def match_methods(method_dirs: Sequence[Path], includes: Sequence[str], excludes: Sequence[str]) -> List[Path]:
     if includes:
         inc = [s.lower() for s in includes]
@@ -217,7 +206,6 @@ def match_methods(method_dirs: Sequence[Path], includes: Sequence[str], excludes
         exc = [s.lower().replace("*", "") for s in excludes]
         selected = [p for p in selected if not any(s and s in p.name.lower() for s in exc)]
     return sorted(selected, key=lambda p: p.name)
-
 
 def parse_trials(items: Sequence[str]) -> Optional[set[int]]:
     if not items or any(str(x).lower() == "all" for x in items):
@@ -323,9 +311,9 @@ def load_trajectories(
     return rows
 
 
-# =============================================================================
-# Embedding and plotting
-# =============================================================================
+
+
+
 
 def build_distance_matrix(permutations: Sequence[Perm], distance_func: DistanceFunc) -> np.ndarray:
     n = len(permutations)
@@ -821,16 +809,13 @@ def save_centroid_flow_plot(
         ["method", "display_method", "trial", "fe_start", "fe_end", "n_points", "centroid_x", "centroid_y", "best_objective_in_bin"],
     )
     return fig_path, csv_path
-# =============================================================================
-# CLI
-# =============================================================================
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Visualize permutation search spaces from result.npz logs")
-    ap.add_argument("--root", default="E:\\2325_yamaguchi\\_results_TEVC_20260709\\", help="Result root folder, same as --save_path in scripts/main.py")
+    ap.add_argument("--root", default="", help="Result root folder, same as --save_path in scripts/main.py")
     ap.add_argument("--ins-name", default="bayg29", choices=INSTANCE_CHOICES, help="Instance folder under --root")
-    ap.add_argument("--include", nargs="*", default=["umm_fixed","rflos_fixed","gbdtma_gbdt_mean_fixed_fin","fatrls_init100_fixed","lat2way_sage_mean_knn_density_1_mu_10_50_BB","lat2way_sage_mean_knn_density_1_mu_10_50"], help="Method name substrings to include")
-    # ap.add_argument("--include", nargs="*", default=["umm_fixed","rflos_fixed","gbdtma_gbdt_mean_fixed_fin","fatrls_init100_fixed","lat2way_sage_mean_knn_density_1_mu_10_50_BB","lat2way_sage_mean_knn_density_1_mu_10_50","lat2way_sage_mean_knn_density_1_1_50","lat2way_sage_mean_knn_density_1_5_50","lat2way_sage_mean_knn_density_1_20_50","lat2way_rf_mean_knn_density_1_mu_10_50","lat2way_gbdt_mean_knn_density_1_mu_10_50"], help="Method name substrings to include")
+    ap.add_argument("--include", nargs="*", default=["umm", "fatrls", "rflos", "gbdtma", "RLEA"], help="Method name substrings to include")
+
     ap.add_argument("--exclude", nargs="*", default=["*_whole"], help="Method name substrings to exclude")
     ap.add_argument("--problem", choices=["auto", "TSP", "ATSP", "LOP", "QAP", "PFSP"], default="auto", help="Used by --distance auto")
     ap.add_argument("--distance", choices=["auto", "hamming", "kendall", "interchange", "adjacency_undirected", "adjacency_directed"], default="auto", help="Permutation distance for embedding")
@@ -870,19 +855,11 @@ def main() -> None:
         "--legend-map",
         nargs="*",
         default=[
-            "lat2way_sage_mean_knn_density_1_mu_10_50=RLEA",
-            "lat2way_sage_mean_knn_density_1_1_50=RLEA_1",
-            "lat2way_sage_mean_knn_density_1_5_50=RLEA_5",
-            "lat2way_sage_mean_knn_density_1_20_50=RLEA_20",
-            "lat2way_sage_mean_knn_density_1_mu_10_50_BB=RLEA-BB",
-            "lat2way_rf_mean_knn_density_1_mu_10_50=RLEA-RF",
-            "lat2way_gbdt_mean_knn_density_1_mu_10_50=RLEA-GBDT",
-            "gbdtma_gbdt_mean_fixed_fin=GBDTMA",
-            "gbdtma_sage_mean_fixed_fin=RLEA-old",
-            "fatrls_init100_fixed=FAT-RLS",
-            "fatrls_fixed=FAT-RLS",
-            "umm_fixed=UMM",
-            "rflos_fixed=RFLoS",
+            "RLEA=RLEA",
+            "gbdtma=GBDTMA",
+            "fatrls=FAT-RLS",
+            "umm=UMM",
+            "rflos=RFLoS",
         ],
         help="Legend rename rules in key=value form",
     )
