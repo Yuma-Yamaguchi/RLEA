@@ -1,0 +1,7 @@
+numpy
+scipy
+pandas
+tqdm
+scikit-learn
+matplotlib
+tsplib95

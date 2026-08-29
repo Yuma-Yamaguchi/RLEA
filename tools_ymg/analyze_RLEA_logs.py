@@ -1,68 +1,3 @@
-#!/usr/bin/env python3
-"""
-Analysis for latent_2ways logs.
-
-This version is designed for experiments laid out as
-
-    BASE / INSTANCE / ALGORITHM / trial_XX / result.npz
-
-and can compare multiple algorithms on one instance.
-
-Main outputs
-------------
-NEW FULL-POOL ANALYSIS: uses cand_true for every generated global/incumbent candidate.
-1. True best-update contribution by source
-   - Counts are computed per trial, never summed across trials in the main plot.
-   - A best update means one true evaluation reduced the incumbent objective.
-2. Embedding/objective relationship
-   - Pairwise embedding distance vs absolute objective difference, within each
-     generation only. Embeddings from retrained surrogate models are not mixed
-     across generations.
-   - 2-D projection of one generation's candidate embeddings, colored by
-     predicted objective; true-evaluated candidates are overlaid with true values.
-3. Global latent-selection diagnostics
-   - overlap with pure score top-k
-   - selected score ranks / rank penalty
-   - embedding-diversity gain over score top-k
-   - gate-distance margin and threshold-fallback rate
-4. Surrogate accuracy
-   - selected-origin comparison: global-origin vs incumbent
-   - exact logged pool comparison: global_pool vs local_pool
-   - MAE, RMSE, bias, Pearson, Spearman, Kendall tau-b
-5. Additional analyses
-   - evaluation allocation and update rate
-   - total improvement contribution
-   - final best objective by algorithm
-   - global selection diagnostics vs same-generation improvement
-6. FE-timing and global/local role analysis
-   - exact FE positions of global/incumbent best updates
-   - early/middle/late and 20%-bin contribution
-   - cumulative update/improvement curves
-   - stagnation-breaking updates and global-to-incumbent follow-up sequences
-   - candidate-pool improvement opportunities and realized improvement
-
-Examples
---------
-python analyze_latent_2way_logs_v2.py \
-    --base-input E:/results \
-    --instance br17 \
-    --algorithm lat2way_sage_topk lat2way_sage_latent_nms \
-    --outdir E:/results_analysis
-
-python analyze_latent_2way_logs_v2.py \
-    --input E:/results/br17/*/trial_*/result.npz \
-    --outdir E:/results_analysis \
-    --instance br17
-
-Notes
------
-- The optimization is assumed to be minimization.
-- Prediction accuracy uses `mu`, not LCB/acquisition `pred`.
-- A single-run latent-selection log can prove that NMS changed selection and
-  increased embedding diversity, but it cannot prove a counterfactual objective
-  gain for unselected score-top candidates. For that claim, compare against a
-  separate top-k ablation algorithm.
-"""
 from __future__ import annotations
 
 import argparse
@@ -81,22 +16,16 @@ import numpy as np
 
 try:
     import pandas as pd
-except Exception as e:  # pragma: no cover
+except Exception as e:
     raise ImportError("pandas is required: pip install pandas") from e
 
 try:
     import matplotlib.pyplot as plt
-except Exception as e:  # pragma: no cover
+except Exception as e:
     raise ImportError("matplotlib is required: pip install matplotlib") from e
-
 
 EPS = 1e-12
 ANALYSIS_SCRIPT_VERSION = "2026-07-30-cand-true-detail-fallback-v3"
-
-
-# =============================================================================
-# Data model and loading
-# =============================================================================
 
 @dataclass(frozen=True)
 class FileSpec:
@@ -220,13 +149,11 @@ def result_dict_to_logs(obj: Mapping[str, Any]) -> Dict[str, Any]:
         logs["detail"] = {k: _normalize_loaded(v) for k, v in detail.items()}
     return logs
 
-
 def _is_trial_name(name: str) -> bool:
     return bool(re.match(r"^(trial|seed|run)[_-]?\d+", name.lower()))
 
-
 def infer_metadata(path: Path) -> Tuple[str, str, str]:
-    """Best-effort inference for .../instance/algorithm/trial/result.npz."""
+
     parts = list(path.parts)
     trial_idx: Optional[int] = None
     for i in range(len(parts) - 2, -1, -1):
@@ -363,7 +290,7 @@ def discover_files(
                         algorithm=inferred_algorithm,
                     ))
 
-    # Stable de-duplication, preserving forced metadata from the first occurrence.
+
     seen: set[str] = set()
     out: List[FileSpec] = []
     for spec in specs:
@@ -375,9 +302,9 @@ def discover_files(
     return out
 
 
-# =============================================================================
-# Basic statistics
-# =============================================================================
+
+
+
 
 def rankdata_average(x: np.ndarray) -> np.ndarray:
     x = np.asarray(x, dtype=float).reshape(-1)
@@ -415,7 +342,7 @@ def spearman_corr(x: Sequence[float], y: Sequence[float]) -> float:
 
 
 def kendall_tau_b(x: Sequence[float], y: Sequence[float], max_n: int = 3000) -> float:
-    """Kendall tau-b without scipy. Deterministically subsamples very large arrays."""
+
     xa = np.asarray(x, dtype=float).reshape(-1)
     ya = np.asarray(y, dtype=float).reshape(-1)
     ok = np.isfinite(xa) & np.isfinite(ya)
@@ -518,9 +445,9 @@ def normalize_source(source: Any) -> str:
     return s
 
 
-# =============================================================================
-# Extract true-evaluated rows and updates
-# =============================================================================
+
+
+
 
 def selected_rows(record: RunRecord) -> pd.DataFrame:
     logs = record.logs
@@ -634,7 +561,7 @@ def selected_rows(record: RunRecord) -> pd.DataFrame:
     df["error"] = df["mu"] - df["label"]
     df["abs_error"] = np.abs(df["error"])
 
-    # Alignment sanity check against archive values, if possible.
+
     if record.eval_vals is not None and np.isfinite(initial_fe):
         tail = np.asarray(record.eval_vals[int(initial_fe):int(initial_fe) + len(df)], dtype=float)
         if len(tail) == len(df):
@@ -659,7 +586,7 @@ def update_summaries(selected: pd.DataFrame, records: Sequence[RunRecord]) -> Tu
         "total_fe": r.total_fe,
     } for r in records])
 
-    # Include zero-count source/run combinations so means are not biased upward.
+
     grid = run_meta.assign(_key=1).merge(
         pd.DataFrame({"source_group": sources, "_key": 1}), on="_key"
     ).drop(columns="_key")
@@ -704,9 +631,9 @@ def update_summaries(selected: pd.DataFrame, records: Sequence[RunRecord]) -> Tu
     return by_run, overall
 
 
-# =============================================================================
-# Embedding analyses
-# =============================================================================
+
+
+
 
 def _selected_embedding_for_generation(record: RunRecord, gen: int) -> Tuple[Optional[np.ndarray], np.ndarray, np.ndarray]:
     detail = get_detail(record.logs)
@@ -716,7 +643,7 @@ def _selected_embedding_for_generation(record: RunRecord, gen: int) -> Tuple[Opt
     if z is not None and len(y) == len(z):
         return z, y, src
 
-    # Fallback to aligned top-level logs.
+
     emb = _as_2d_or_none(_list_get(record.logs.get("emb"), gen), float)
     label = _as_1d(_list_get(record.logs.get("label"), gen), float)
     mask = _as_1d(_list_get(record.logs.get("selected_mask"), gen), bool)
@@ -794,7 +721,7 @@ def _project_2d(z: np.ndarray, method: str, seed: int) -> np.ndarray:
     if len(z) == 1:
         return np.zeros((1, 2), dtype=float)
 
-    # Standardize dimensions before nonlinear projection.
+
     z_std = (z - np.nanmean(z, axis=0, keepdims=True)) / (np.nanstd(z, axis=0, keepdims=True) + EPS)
     if method == "pca":
         centered = z_std - np.mean(z_std, axis=0, keepdims=True)
@@ -805,7 +732,7 @@ def _project_2d(z: np.ndarray, method: str, seed: int) -> np.ndarray:
         return comp[:, :2]
     if method == "umap":
         try:
-            import umap  # type: ignore
+            import umap
             n_neighbors = max(2, min(15, len(z_std) - 1))
             return np.asarray(umap.UMAP(
                 n_components=2, n_neighbors=n_neighbors, random_state=seed
@@ -857,19 +784,8 @@ def parse_generation_specs(specs: Sequence[str], ng: int) -> List[int]:
                 out.append(idx)
     return out
 
-
-
-# =============================================================================
-# Full candidate-pool and archive embedding analyses
-# =============================================================================
-
 def _candidate_generation_arrays(record: RunRecord, gen: int) -> Optional[Dict[str, np.ndarray]]:
-    """Return length-aligned arrays for every candidate in one generation.
 
-    ``cand_true`` and archive snapshots may be saved either as top-level NPZ
-    fields or inside ``detail``.  Optional/missing arrays must never cause a
-    broadcasting error against the candidate pool.
-    """
     logs = record.logs
     detail = get_detail(logs)
 
@@ -880,9 +796,6 @@ def _candidate_generation_arrays(record: RunRecord, gen: int) -> Optional[Dict[s
     emb = _as_2d_or_none(_list_get(logs.get("emb"), gen), float)
     source = _as_1d(_list_get(logs.get("source"), gen), object)
 
-    # Full-pool true values are logged in latent_2way as cand_true.  Some
-    # runners save only ``detail`` rather than exporting cand_true as a
-    # top-level NPZ field, so support both layouts.
     truth_raw = _list_get(logs.get("cand_true"), gen)
     if truth_raw is None:
         truth_raw = _list_get(detail.get("cand_true"), gen)
@@ -891,8 +804,6 @@ def _candidate_generation_arrays(record: RunRecord, gen: int) -> Optional[Dict[s
     selected = _as_1d(_list_get(logs.get("selected_mask"), gen), bool)
     eval_source = _as_1d(_list_get(logs.get("selected_eval_source"), gen), object)
 
-    # Determine pool size from actual candidate-defining arrays.  Do not let
-    # optional fields such as pred/sigma/source shrink the pool to zero.
     core_lengths: List[int] = []
     if cand is not None and len(cand):
         core_lengths.append(len(cand))
@@ -966,7 +877,7 @@ def _candidate_generation_arrays(record: RunRecord, gen: int) -> Optional[Dict[s
 
 
 def _archive_generation_arrays(record: RunRecord, gen: int) -> Optional[Dict[str, np.ndarray]]:
-    """Return the archive snapshot embedded/predicted by that generation's surrogate."""
+
     logs = record.logs
     detail = get_detail(logs)
 
@@ -1065,7 +976,7 @@ def _prediction_metric_dict(y: np.ndarray, p: np.ndarray, top_fraction: float = 
 
 
 def candidate_pool_accuracy_by_generation(records: Sequence[RunRecord]) -> pd.DataFrame:
-    """Accuracy on every true-labelled candidate, separated into global and incumbent pools."""
+
     rows: List[Dict[str, Any]] = []
     for rec in records:
         for gen in range(n_generations(rec.logs)):
@@ -1133,7 +1044,7 @@ def _pairwise_relation(z: np.ndarray, values: np.ndarray, metric: str, max_pairs
 def embedding_structure_by_generation(
     records: Sequence[RunRecord], metric: str, max_pairs_per_generation: int,
 ) -> pd.DataFrame:
-    """How embedding distance relates to true and predicted objective differences."""
+
     rows: List[Dict[str, Any]] = []
     for ri, rec in enumerate(records):
         for gen in range(n_generations(rec.logs)):
@@ -1196,7 +1107,7 @@ def _cross_distance_matrix(a: np.ndarray, b: np.ndarray, metric: str) -> np.ndar
 
 
 def archive_candidate_relation_by_generation(records: Sequence[RunRecord], metric: str) -> pd.DataFrame:
-    """Novelty/location of global and incumbent pools relative to the current archive."""
+
     rows: List[Dict[str, Any]] = []
     for rec in records:
         for gen in range(n_generations(rec.logs)):
@@ -1287,7 +1198,7 @@ def _procrustes_residual(z1: np.ndarray, z2: np.ndarray) -> float:
 
 
 def archive_embedding_updates(records: Sequence[RunRecord], metric: str) -> pd.DataFrame:
-    """Stability/change of common archive solutions between consecutive generations."""
+
     rows: List[Dict[str, Any]] = []
     for rec in records:
         previous: Optional[Dict[str, np.ndarray]] = None
@@ -1331,9 +1242,9 @@ def archive_embedding_updates(records: Sequence[RunRecord], metric: str) -> pd.D
             previous_gen = gen
     return pd.DataFrame(rows)
 
-# =============================================================================
-# Global latent-selection diagnostics
-# =============================================================================
+
+
+
 
 def global_selection_rows(records: Sequence[RunRecord], metric: str) -> pd.DataFrame:
     rows: List[Dict[str, Any]] = []
@@ -1367,8 +1278,8 @@ def global_selection_rows(records: Sequence[RunRecord], metric: str) -> pd.DataF
             selected_div = score_top_div = np.zeros((0,), dtype=float)
             if top_emb is not None:
                 selected_positions: List[int] = []
-                # top_pool_root_selected includes uncertainty/fallback roots too.  Prefer
-                # exact permutation matching for the global-selected indices.
+
+
                 if (top_cand is not None and global_cand is not None
                         and len(top_cand) == len(top_emb) and len(selected_idx)):
                     top_lookup = {tuple(int(v) for v in row): i for i, row in enumerate(top_cand)}
@@ -1383,7 +1294,7 @@ def global_selection_rows(records: Sequence[RunRecord], metric: str) -> pd.DataF
                 if selected_positions:
                     selected_emb = top_emb[np.asarray(selected_positions, dtype=int)]
                     selected_div = pairwise_distances(selected_emb, metric)
-                # top_pool starts with score order; selected outside the slice are appended.
+
                 score_top_emb = top_emb[: min(k, len(top_emb))]
                 score_top_div = pairwise_distances(score_top_emb, metric)
 
@@ -1453,14 +1364,14 @@ def merge_global_outcomes(global_diag: pd.DataFrame, selected: pd.DataFrame) -> 
     return out
 
 
-# =============================================================================
-# Surrogate accuracy
-# =============================================================================
+
+
+
 
 def surrogate_prediction_rows(records: Sequence[RunRecord], selected: pd.DataFrame) -> pd.DataFrame:
     frames: List[pd.DataFrame] = []
 
-    # Definition 1: final true-evaluated candidates by search origin.
+
     if not selected.empty:
         origin = selected[np.isfinite(selected["mu"]) & np.isfinite(selected["label"])].copy()
         origin["definition"] = "selected_origin"
@@ -1470,7 +1381,7 @@ def surrogate_prediction_rows(records: Sequence[RunRecord], selected: pd.DataFra
             "source", "label", "mu", "sigma", "is_best_update", "improvement",
         ]])
 
-    # Definition 2: exact arrays logged for the global/local candidate pools.
+
     pool_rows: List[Dict[str, Any]] = []
     for rec in records:
         detail = get_detail(rec.logs)
@@ -1561,15 +1472,15 @@ def accuracy_metrics(pred_rows: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFram
 
 
 
-# =============================================================================
-# FE-timing and global/local role analyses
-# =============================================================================
+
+
+
 
 CORE_UPDATE_SOURCES: Tuple[str, str] = ("global", "incumbent")
 
 
 def _add_fe_position_columns(selected: pd.DataFrame, n_bins: int = 5) -> pd.DataFrame:
-    """Add absolute/normalized FE positions and phase labels to true evaluations."""
+
     if selected.empty:
         return selected.copy()
     d = selected.copy()
@@ -1612,10 +1523,6 @@ def best_update_timing_analysis(
     n_bins: int = 5,
     stagnation_fraction: float = 0.20,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Return FE-positioned evaluations, update events, per-run FE bins,
-    FE-bin summary, early/middle/late contribution, and source indicators.
-    """
     d = _add_fe_position_columns(selected, n_bins=n_bins)
     if d.empty:
         empty = pd.DataFrame()
@@ -1824,7 +1731,7 @@ def best_update_timing_analysis(
 
 
 def global_incumbent_followup_sequences(events: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """Measure incumbent updates occurring after each global update and before the next global update."""
+
     if events.empty:
         return pd.DataFrame(), pd.DataFrame()
     rows: List[Dict[str, Any]] = []
@@ -1880,10 +1787,6 @@ def candidate_pool_improvement_opportunity(
     records: Sequence[RunRecord],
     selected_with_fe: pd.DataFrame,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Quantify whether each full candidate pool contained a true improvement and
-    whether the corresponding source actually realized it through true evaluation.
-    """
     rows: List[Dict[str, Any]] = []
     for rec in records:
         run_selected = selected_with_fe[selected_with_fe["run"] == rec.run]
@@ -2026,9 +1929,9 @@ def candidate_pool_improvement_opportunity(
     )
     return by_gen, summary, comparison, comp_summary
 
-# =============================================================================
-# Plot helpers
-# =============================================================================
+
+
+
 
 def _safe_name(s: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", str(s))
@@ -2187,7 +2090,7 @@ def plot_embedding_relation(pairs: pd.DataFrame, outdir: Path, max_points: int) 
         return
     algorithms = sorted(set(pairs["algorithm"].astype(str)))
 
-    # Per-algorithm scatter: less visually misleading than mixing latent spaces.
+
     for alg in algorithms:
         g = pairs[pairs["algorithm"] == alg].copy()
         if len(g) > max_points:
@@ -2207,7 +2110,7 @@ def plot_embedding_relation(pairs: pd.DataFrame, outdir: Path, max_points: int) 
         fig.savefig(outdir / f"embedding_distance_vs_objective_{_safe_name(alg)}.png", dpi=220)
         plt.close(fig)
 
-    # Combined binned curves for algorithm comparison.
+
     fig, ax = plt.subplots(figsize=(7.5, 5.2))
     drew = False
     for alg in algorithms:
@@ -2259,7 +2162,7 @@ def plot_global_selection(global_df: pd.DataFrame, outdir: Path) -> None:
         fig.savefig(outdir / filename, dpi=220)
         plt.close(fig)
 
-    # Rank/diversity trade-off.
+
     valid = global_df[np.isfinite(global_df["mean_rank_delta"]) & np.isfinite(global_df["mean_pairwise_diversity_gain"])]
     if not valid.empty:
         fig, ax = plt.subplots(figsize=(6.7, 5.3))
@@ -2275,7 +2178,7 @@ def plot_global_selection(global_df: pd.DataFrame, outdir: Path) -> None:
         fig.savefig(outdir / "global_selection_rank_diversity_tradeoff.png", dpi=220)
         plt.close(fig)
 
-    # Coarse outcome association per generation.
+
     if "global_total_improvement" in global_df:
         valid = global_df[np.isfinite(global_df["mean_pairwise_diversity_gain"])]
         if not valid.empty:
@@ -2328,7 +2231,7 @@ def plot_accuracy(by_run: pd.DataFrame, pred_rows: pd.DataFrame, outdir: Path) -
             fig.savefig(outdir / f"surrogate_{metric}_{definition}.png", dpi=220)
             plt.close(fig)
 
-    # True vs predicted, selected-origin definition.
+
     d = pred_rows[(pred_rows["definition"] == "selected_origin") & pred_rows["scope"].isin(["global", "incumbent"])]
     for alg, g_alg in d.groupby("algorithm"):
         if g_alg.empty:
@@ -2374,7 +2277,7 @@ def plot_embedding_projections(
     max_runs_per_algorithm: int,
     max_points: int,
 ) -> None:
-    """Same candidate coordinates: left=prediction, right=true value for every candidate."""
+
     if method == "none":
         return
     chosen_count: Dict[str, int] = {}
@@ -2432,7 +2335,7 @@ def plot_archive_candidate_projections(
     max_runs_per_algorithm: int,
     max_points: int,
 ) -> None:
-    """Archive and all candidates in one current-surrogate embedding space."""
+
     if method == "none":
         return
     chosen_count: Dict[str, int] = {}
@@ -2454,7 +2357,7 @@ def plot_archive_candidate_projections(
             ic = np.where(vc)[0]
             if len(ia) + len(ic) < 2:
                 continue
-            # Reserve at least half of the budget for candidates when both sets are large.
+
             max_a = max(1, max_points // 2)
             max_c = max(1, max_points - min(len(ia), max_a))
             ia = _sample_projection_indices(ia, np.zeros(0, dtype=int), max_a, 100000 + rec_i * 1000 + gen)
@@ -2474,19 +2377,19 @@ def plot_archive_candidate_projections(
             vmax = float(np.max(both)) if len(both) else None
 
             fig, axes = plt.subplots(1, 3, figsize=(18.0, 5.3))
-            # True-value panel.
+
             a0 = axes[0].scatter(ca[:, 0], ca[:, 1], c=arc["truth"][ia], marker="o", s=18, alpha=0.55, vmin=vmin, vmax=vmax, label="archive")
             axes[0].scatter(cc[:, 0], cc[:, 1], c=cand["truth"][ic], marker="x", s=20, alpha=0.68, vmin=vmin, vmax=vmax, label="candidates")
             fig.colorbar(a0, ax=axes[0], label="True objective")
             axes[0].set_title("Archive and candidates: true values")
 
-            # Prediction panel.
+
             a1 = axes[1].scatter(ca[:, 0], ca[:, 1], c=arc["mu"][ia], marker="o", s=18, alpha=0.55, vmin=vmin, vmax=vmax, label="archive")
             axes[1].scatter(cc[:, 0], cc[:, 1], c=cand["mu"][ic], marker="x", s=20, alpha=0.68, vmin=vmin, vmax=vmax, label="candidates")
             fig.colorbar(a1, ax=axes[1], label="Predicted objective (mu)")
             axes[1].set_title("Archive and candidates: predictions")
 
-            # Source/location panel.
+
             axes[2].scatter(ca[:, 0], ca[:, 1], c="lightgray", marker="o", s=16, alpha=0.45, label="archive")
             styles = {
                 "global_pool": ("tab:orange", "x", "global candidates"),
@@ -2806,7 +2709,7 @@ def plot_candidate_pool_improvement_opportunity(by_gen: pd.DataFrame, outdir: Pa
             fig.savefig(outdir / f"candidate_pool_{suffix}_by_generation_{_safe_name(str(alg))}.png", dpi=220)
             plt.close(fig)
 
-        # Oracle vs realized improvement, source separated.
+
         fig, axes = plt.subplots(1, 2, figsize=(12.5, 4.8), squeeze=False)
         for ax, source in zip(axes[0], CORE_UPDATE_SOURCES):
             d = d0[d0["scope"] == source]
@@ -2829,9 +2732,9 @@ def plot_candidate_pool_improvement_opportunity(by_gen: pd.DataFrame, outdir: Pa
         fig.savefig(outdir / f"candidate_pool_oracle_vs_realized_improvement_{_safe_name(str(alg))}.png", dpi=220)
         plt.close(fig)
 
-# =============================================================================
-# Output orchestration
-# =============================================================================
+
+
+
 
 def final_performance_table(records: Sequence[RunRecord]) -> pd.DataFrame:
     rows = []
@@ -2897,7 +2800,7 @@ def write_instance_outputs(
     by_run.to_csv(outdir / "best_update_by_run_and_source.csv", index=False)
     update_overall.to_csv(outdir / "best_update_summary_by_algorithm_and_source.csv", index=False)
 
-    # FE-position analysis of global/incumbent evaluations and best updates.
+
     selected_with_fe, update_events, timing_by_run_bin, timing_bin_summary, phase_summary, importance_indicators = (
         best_update_timing_analysis(
             selected,
@@ -2970,14 +2873,14 @@ def write_instance_outputs(
     acc_by_run.to_csv(outdir / "surrogate_accuracy_by_run_scope.csv", index=False)
     acc_overall.to_csv(outdir / "surrogate_accuracy_summary_by_algorithm_scope.csv", index=False)
 
-    # Full-pool surrogate accuracy: all global_pool and incumbent candidates have cand_true.
+
     pool_by_gen = candidate_pool_accuracy_by_generation(records)
     pool_by_gen.to_csv(outdir / "candidate_pool_accuracy_by_generation.csv", index=False)
     pool_by_run, pool_summary = summarize_candidate_pool_accuracy(pool_by_gen)
     pool_by_run.to_csv(outdir / "candidate_pool_accuracy_by_run_scope.csv", index=False)
     pool_summary.to_csv(outdir / "candidate_pool_accuracy_summary_by_algorithm_scope.csv", index=False)
 
-    # Does each global/incumbent pool contain a true improvement, and was it captured?
+
     opportunity_by_gen, opportunity_summary, opportunity_comparison, opportunity_comparison_summary = (
         candidate_pool_improvement_opportunity(records, selected_with_fe)
     )
@@ -2986,7 +2889,7 @@ def write_instance_outputs(
     opportunity_comparison.to_csv(outdir / "candidate_pool_opportunity_comparison_by_generation.csv", index=False)
     opportunity_comparison_summary.to_csv(outdir / "candidate_pool_opportunity_comparison_summary.csv", index=False)
 
-    # Embedding structure in archive/global/incumbent/all-candidate sets.
+
     emb_structure = embedding_structure_by_generation(records, metric, max_pairs_per_generation)
     emb_structure.to_csv(outdir / "embedding_structure_by_generation.csv", index=False)
     arc_cand_relation = archive_candidate_relation_by_generation(records, metric)
@@ -2994,11 +2897,11 @@ def write_instance_outputs(
     arc_updates = archive_embedding_updates(records, metric)
     arc_updates.to_csv(outdir / "archive_embedding_updates_between_generations.csv", index=False)
 
-    # Explicit totals across trials, in addition to per-trial means/dots.
+
     update_totals = best_update_total_table(by_run)
     update_totals.to_csv(outdir / "best_update_total_global_vs_incumbent.csv", index=False)
 
-    # Attribute the last and the largest update in each trial.
+
     attribution_rows = []
     if not selected.empty:
         for run, g in selected.groupby("run"):
@@ -3100,10 +3003,10 @@ def write_instance_outputs(
 def main() -> None:
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--input", nargs="*", default=None, help="Files, directories, or glob patterns.")
-    parser.add_argument("--base-input", default="E:\\2325_yamaguchi\\_results_TEVC_20260709\\", help="Root containing INSTANCE/ALGORITHM/trial_XX/result.npz.")
+    parser.add_argument("--base-input", default="", help="Root containing INSTANCE/ALGORITHM/trial_XX/result.npz.")
     parser.add_argument("--instance", nargs="*", default=["N-econ36"], help="Instance names under --base-input.")
-    parser.add_argument("--algorithm", nargs="*", default=["lat2way_sage_mean_knn_density_0.2_2"], help="Algorithm directory names or glob patterns under each instance.")
-    parser.add_argument("--outdir", default="E:\\2325_yamaguchi\\_results_TEVC_20260709\\_lat_ana", help="Output root. One subdirectory is created per instance.")
+    parser.add_argument("--algorithm", nargs="*", default=["RLEA"], help="Algorithm directory names or glob patterns under each instance.")
+    parser.add_argument("--outdir", default="_lat_ana", help="Output root. One subdirectory is created per instance.")
     parser.add_argument("--metric", choices=["cosine", "euclidean"], default="cosine")
     parser.add_argument("--max-pairs-per-generation", type=int, default=5000)
     parser.add_argument("--max-scatter-points", type=int, default=40000)
@@ -3115,7 +3018,7 @@ def main() -> None:
     parser.add_argument("--stagnation-fraction", type=float, default=0.20, help="Gap fraction of post-initial search budget used to flag stagnation-breaking updates.")
     parser.add_argument("--no-plots", action="store_true")
     args = parser.parse_args()
-    print(f"[analyze_latent_2way_logs] version={ANALYSIS_SCRIPT_VERSION}")
+    print(f"[analyze_RLEA_logs] version={ANALYSIS_SCRIPT_VERSION}")
 
     specs = discover_files(args.input, args.base_input, args.instance, args.algorithm)
     if not specs:

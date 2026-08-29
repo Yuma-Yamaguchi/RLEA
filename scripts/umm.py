@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from typing import Callable, List, Optional, Tuple, Dict, Any
 import math
@@ -12,7 +12,7 @@ def binary_search_rho(
     w,
     ratio_samples_learn,
     weight_mass_learn,
-    # 0 <= w_i <= 1, w is sorted increasingly,
+
     rho_ini=1,
     rho_end=0,
     tol=0.001,
@@ -21,7 +21,7 @@ def binary_search_rho(
     assert np.all(w >= 0.0)
     assert np.all(w <= 1.0)
 
-    # Find rho so that top ratio of weights captures weight_mass of cumulative mass.
+
     pos = int(len(w) * ratio_samples_learn)
     rho_med = (rho_ini + rho_end) / 2
     if abs(rho_ini - rho_end) < 1e-20:
@@ -59,7 +59,7 @@ def binary_search_rho(
 
 
 def get_expected_distance(iterat, n, budget):
-    # Should this be Kendall max dist?
+
     N = (n - 1) * n / 2
     f_ini, f_end = N / 4, 1
     iter_decrease = budget - 10
@@ -102,7 +102,7 @@ def _umm_core(
         history_best.append(best_so_far)
 
     for m in range(budget - m_ini):
-        # ===== learning step =====
+
         ws = np.asarray(fitnesses, dtype=np.float64).copy()
         ws = ws - ws.min()
         if ws.max() > 0:
@@ -121,7 +121,7 @@ def _umm_core(
         expected_dist = get_expected_distance(m, n, budget)
         phi_sample = mk.find_phi(n, expected_dist, expected_dist + 1)
 
-        # ===== PURE UMM sampling =====
+
         while True:
             perm = mk.samplingMM(1, n, phi=phi_sample, k=None)[0]
             perm = perm[borda]
@@ -129,7 +129,7 @@ def _umm_core(
             if not any(np.array_equal(perm, s) for s in sample):
                 break
 
-        # ===== evaluation =====
+
         sample.append(perm)
         fx = float(f_eval(perm))
         fitnesses.append(fx)
@@ -170,13 +170,7 @@ def umm(
     ratio_samples_learn: float = 0.1,
     weight_mass_learn: float = 0.9,
 ) -> Tuple[List[int], float, List[List[int]], List[float], List[float]]:
-    """
-    UMM runner with FAT-RLS-compatible interface.
 
-    Returns
-    -------
-    best_perm, best_val, eval_perms, eval_vals, history_best
-    """
     if seed is not None:
         np.random.seed(seed)
 
@@ -205,9 +199,6 @@ def UMM(
     weight_mass_learn,
     eval_ranks,
 ):
-    """
-    Backward-compatible API used by older scripts.
-    """
     np.random.seed(seed)
 
     if eval_ranks:
@@ -230,4 +221,3 @@ def UMM(
     df["Fitness"] = out["fitnesses"]
     df["x"] = out["sample"]
     return df
-

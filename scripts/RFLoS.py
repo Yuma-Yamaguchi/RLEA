@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -96,15 +96,6 @@ def pop_update_elanddiv(arc: Population, elr: float, n_keep: int) -> Population:
 
 
 class RFLoS:
-    """
-    Python translation of RFLoS.m with the same main optimization flow.
-
-    MATLAB reference:
-    - Parameters: K=10, wmax=10
-    - Local surrogate model: fitrensemble(TrainDecs, TrainObjs)
-    - Offspring operator: twoExch
-    - Population update: PopUpdate_ElandDiv
-    """
 
     def __init__(
         self,
@@ -163,7 +154,7 @@ class RFLoS:
 
                 selection = pre_off_obj < pre_pop_obj
 
-                true_pop_obj = problem.cal_obj(pop_dec).reshape(-1) #recall 計算用
+                true_pop_obj = problem.cal_obj(pop_dec).reshape(-1)
                 true_off_obj = problem.cal_obj(off_dec).reshape(-1)
                 true_select = true_off_obj < true_pop_obj
                 rid = true_select == 1
@@ -294,9 +285,7 @@ def rflos(
     cfg: Optional[RFLoSConfig] = None,
     seed: int = 0,
 ) -> Tuple[List[int], float, List[List[int]], List[float], List[float], Dict[str, Any]]:
-    """
-    Wrapper to run RFLoS with the same input/output style as gbdtma().
-    """
+
     if cfg is None:
         cfg = RFLoSConfig()
 
